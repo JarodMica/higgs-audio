@@ -197,3 +197,9 @@ result/
 
 # Ruff
 .ruff_cache/
+
+personal/
+generation.wav
+output.wav
+voice_prompts/furina.txt
+voice_prompts/furina.wav

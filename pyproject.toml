@@ -1,101 +1,55 @@
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-[tool.ruff]
-line-length = 119
-target-version = "py310"
-indent-width = 4
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".ipynb_checkpoints",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    ".vscode",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "site-packages",
-    "venv",
-    "external",
-    "third_party",
+[project]
+name = "higgs-audio"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "accelerate>=0.26.0",
+    "boto3==1.35.36",
+    "click>=8.2.1",
+    "dacite>=1.9.2",
+    "descript-audio-codec>=1.0.0",
+    "jieba>=0.42.1",
+    "json-repair>=0.48.0",
+    "langid>=1.1.6",
+    "librosa>=0.11.0",
+    "loguru>=0.7.3",
+    "numba>=0.61.2",
+    "omegaconf>=2.3.0",
+    "pandas>=2.3.1",
+    "pydantic>=2.11.7",
+    "pydub>=0.25.1",
+    "pyyaml>=6.0.2",
+    "ruff==0.12.2",
+    "s3fs>=2025.7.0",
+    "setuptools>=80.9.0",
+    "torch>=2.7.1",
+    "torchaudio>=2.7.1",
+    "torchvision>=0.22.1",
+    "transformers>=4.45.1,<4.47.0",
+    "vector-quantize-pytorch>=1.22.18",
 ]
 
-[tool.ruff.lint]
-preview = true
-ignore-init-module-imports = true
-extend-select = [
-    "B009", # static getattr
-    "B010", # static setattr
-    "CPY", # Copyright
-    "E", # PEP8 errors
-    "F", # PEP8 formatting
-    "I", # Import sorting
-    "TID251", # Banned API
-    "UP", # Pyupgrade
-    "W", # PEP8 warnings
-]
-ignore = [
-    "E501", # Line length (handled by ruff-format)
-    "E741", # Ambiguous variable name
-    "W605", # Invalid escape sequence
-    "UP007", # X | Y type annotations
+[project.optional-dependencies]
+cu128 = [
+  "torch>=2.7.0",
+  "torchvision>=0.22.0",
+  "torchaudio>=2.7.0"
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = [
-    "F401", # Ignore seemingly unused imports (they're meant for re-export)
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+torchvision = [
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+torchaudio = [
+  { index = "pytorch-cu128", extra = "cu128" },
 ]
 
-[tool.ruff.lint.isort]
-lines-after-imports = 2
-known-first-party = ["character_tuning"]
-
-[tool.ruff.format]
-# Like Black, use double quotes for strings.
-quote-style = "double"
-
-# Like Black, indent with spaces, rather than tabs.
-indent-style = "space"
-
-# Like Black, respect magic trailing commas.
-skip-magic-trailing-comma = false
-
-# Like Black, automatically detect the appropriate line ending.
-line-ending = "auto"
-
-# Enable auto-formatting of code examples in docstrings. Markdown,
-# reStructuredText code/literal blocks and doctests are all supported.
-#
-# This is currently disabled by default, but it is planned for this
-# to be opt-out in the future.
-docstring-code-format = false
-
-# Set the line length limit used when formatting code snippets in
-# docstrings.
-#
-# This only has an effect when the `docstring-code-format` setting is
-# enabled.
-docstring-code-line-length = "dynamic"
-
-[tool.ruff.lint.flake8-tidy-imports.banned-api]
-"os.getenv".msg = "Use os.environ instead"
-"os.putenv".msg = "Use os.environ instead"
-"os.unsetenv".msg = "Use os.environ instead"
-
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
