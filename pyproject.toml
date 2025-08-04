@@ -1,9 +1,25 @@
 [project]
 name = "higgs-audio"
 version = "0.1.0"
-description = "Add your description here"
+description = "Higgs Audio V2: Redefining Expressiveness in Audio Generation"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+    {name = "Boson AI", email = "contact@boson.ai"},
+]
+license = {text = "Apache-2.0"}
+keywords = ["audio", "tts", "text-to-speech", "voice-cloning", "multimodal", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 dependencies = [
     "accelerate>=0.26.0",
     "boto3==1.35.36",
@@ -18,17 +34,21 @@ dependencies = [
     "numba>=0.61.2",
     "omegaconf>=2.3.0",
     "pandas>=2.3.1",
-    "pydantic>=2.11.7",
+    "pydantic<=2.10.6",
     "pydub>=0.25.1",
     "pyyaml>=6.0.2",
     "ruff==0.12.2",
     "s3fs>=2025.7.0",
     "setuptools>=80.9.0",
+    "soundfile>=0.12.1",
     "torch>=2.7.1",
     "torchaudio>=2.7.1",
     "torchvision>=0.22.1",
     "transformers>=4.45.1,<4.47.0",
+    "tqdm>=4.64.0",
     "vector-quantize-pytorch>=1.22.18",
+    "gradio==4.44.1",
+    "gradio-utils",
 ]
 
 [project.optional-dependencies]
@@ -48,8 +68,26 @@ torchvision = [
 torchaudio = [
   { index = "pytorch-cu128", extra = "cu128" },
 ]
+higgs-audio = { workspace = true }
+gradio-utils = { git = "https://github.com/JarodMica/gradio_utils.git" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "higgs-audio",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["boson_multimodal"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

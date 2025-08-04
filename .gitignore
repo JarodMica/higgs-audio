@@ -201,5 +201,9 @@ result/
 personal/
 generation.wav
 output.wav
-voice_prompts/furina.txt
-voice_prompts/furina.wav
+voice_prompts/furina/
+
+models/
+CLAUDE.md
+gradio_interface.py
+output_offline.wav
