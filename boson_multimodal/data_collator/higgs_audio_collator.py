@@ -389,18 +389,18 @@ class HiggsAudioSampleCollator:
                 else:
                     audio_codes = torch.cat(
                         [
-                            torch.full((ele.shape[0], 1), self.audio_stream_bos_id, dtype=torch.long),
+                            torch.full((ele.shape[0], 1), self.audio_stream_bos_id, dtype=torch.long).to(ele.device),
                             ele,
-                            torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long),
+                            torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long).to(ele.device),
                         ],
                         dim=1,
                     )
                     if return_labels:
                         label_audio_ids = torch.cat(
                             [
-                                torch.full((ele.shape[0], 1), -100, dtype=torch.long),
+                                torch.full((ele.shape[0], 1), -100, dtype=torch.long).to(ele.device),
                                 ele,
-                                torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long),
+                                torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long).to(ele.device),
                             ],
                             dim=1,
                         )

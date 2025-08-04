@@ -7,8 +7,178 @@
   <a href="https://huggingface.co/bosonai/higgs-audio-v2-generation-3B-base"><img src="https://img.shields.io/badge/🤗-Checkpoints (3.6B LLM + 2.2B audio adapter)-ED5A22.svg" style="margin-right: 5px;"></a>
 </div>
 
+# Training repo for Higgs Audio v2  
 
-We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-tuning, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
+# Data Processing and Training Guide  
+数据处理与训练指南  
+
+⚠️ Note: Currently, only single-speaker training is implemented  
+
+## NEW  
+
+- New language training  
+- Experimental feature: DDP support. For details, please refer to: `DDP_training.sh`  
+- Optimized input parameters, removed unnecessary misleading parameters  
+- Adopted official data classes  
+- Supports LoRA training, 16G memory is sufficient for training  
+- Provides a mini training set, welcome to use  
+
+## TODO  
+- [ ] Multi-speaker training
+
+## Data Processing  数据处理
+
+First, prepare your audio and text data in the required format.  
+首先，请按照要求准备好音频和文本数据。
+
+### Data Format  数据格式
+
+ms-swift data format:  
+ms-swift 数据格式:
+```jsonl
+{"messages": [{"role": "assistant", "content": "<think>描述了今天天气真不错"}], "audios": ["/xxx/x.wav"]}
+```
+
+Run the script  
+运行脚本
+
+```shell
+python convert_jsonl_to_higgs.py \
+  --jsonl_files /path/to/audio.jsonl \
+  --output_dir ./higgs_training_data \
+  --copy_audio True
+```
+
+Obtain data in the following format  
+得到以下格式的数据
+
+```shell
+higgs_training_data/
+├── metadata.json                  # Overall metadata file of the dataset
+├── huo_speaker_000001.wav         # Audio file 1 of speaker "huo"
+├── huo_speaker_000001.txt         # Text transcription corresponding to the audio
+├── huo_speaker_000002.wav         # Audio file 2 of speaker "huo"
+├── huo_speaker_000002.txt         # Text transcription corresponding to the audio
+├── ...                            # More audio/text files of "huo_speaker"
+├── huo_speaker_000051.wav         # Audio file 1 of speaker "huo"
+├── huo_speaker_000051.txt         # Text transcription corresponding to the audio
+├── huo_speaker_000052.wav         # Audio file 2 of speaker "huo"
+├── huo_speaker_000052.txt         # Text transcription corresponding to the audio
+└── ...                            # More audio/text files of "huo_speaker"
+```
+
+metadata.json 格式
+```json
+{
+  "dataset_info": {
+    "total_samples": 2797,
+    "speakers": [
+      "huo_speaker"
+    ],
+    "languages": [
+      "zh"
+    ],
+    "total_duration": 12173.9,
+    "avg_duration": 4.35,
+    "created_from": [
+      "/root/code/new_work_code/HI-TransPA/swfit_workdir/fresh-little-lemon-workspace/data/swift_format/huo_audio.jsonl"
+    ]
+  },
+  "samples": [
+    {
+      "id": "huo_speaker_000000",
+      "audio_file": "huo_speaker_000000.wav",
+      "transcript_file": "huo_speaker_000000.txt",
+      "duration": 3.86,
+      "speaker_id": "huo_speaker",
+      "speaker_name": "Huo",
+      "scene": "recording_system",
+      "emotion": "alerting",
+      "ref_audio_file": If you need a reference tone color, please add this field, which will take effect under the "zero_shot_voice_cloning" model. 如果你是需要有参考音色，请加入此字段，这会在"zero_shot_voice_cloning"模型下生效
+      "language": "zh",
+      "gender": "unknown",
+      "quality_score": 1.0,
+      "original_audio_path": "audio_splits_huo/14_cropped_with_audio_line000001_vid00_f7b81293.wav",
+      "user_instruction": "<audio> /translate",
+      "task_type": "audio_generation"
+    },
+    {
+      "id": "huo_speaker_000001",
+      "audio_file": "huo_speaker_000001.wav",
+      "transcript_file": "huo_speaker_000001.txt",
+      "duration": 3.2,
+      "speaker_id": "huo_speaker",
+      "speaker_name": "Huo",
+      "scene": "quiet_room",
+      "emotion": "questioning",
+      "ref_audio_file": If you need a reference tone color, please add this field, which will take effect under the "zero_shot_voice_cloning" model. 如果你是需要有参考音色，请加入此字段，这会在"zero_shot_voice_cloning"模型下生效
+      "language": "zh",
+      "gender": "unknown",
+      "quality_score": 1.0,
+      "original_audio_path": "audio_splits_huo/126_cropped_with_audio_line000002_vid00_66220ae5.wav",
+      "user_instruction": "<audio> /translate",
+      "task_type": "audio_generation"
+    }
+  ]
+}
+
+```
+
+
+## Training  训练
+
+Please make sure to modify all parameters before training, including data path, model path, number of training epochs, etc.  
+请务必在训练前修改各个参数，包括数据路径、模型路径、训练轮数等。
+
+```shell
+python trainer/trainer.py
+```
+
+Fine-tuning with LoRA requires the use of `--use_lora True`, like:
+
+```shell
+python trainer/trainer.py --use_lora True
+```
+
+It should be noted that when using LoRA to fine-tune new voices, there may be cases where normal output cannot be achieved. This issue has currently been found in the migration fine-tuning of Vietnamese, and it is not yet clear whether it is a training problem or other circumstances. Based on past experience, when training a model to learn knowledge it has never been exposed to, it is better to use full fine-tuning with the parameter `--use_lora False`.
+
+
+
+
+
+## Merge lora
+```shell
+bash merge_model.sh \
+    --base_model_path xxx \
+    --lora_adapter_path xxx \
+    --output_path xxx \
+    --compare_models \
+    --test_input "A custom sentence for testing." 
+```
+
+## generate  生成
+
+```shell
+bash generate.sh
+```
+
+## Experiment Comparison: Text and Audio Effect Comparison  实验对比：文本与音频效果对照
+
+To intuitively show the difference between generated sounds and real sounds, the following table contains directly playable audio files:  
+为直观展示生成声音与真实声音的差异，以下表格包含可直接播放的音频文件：
+
+Since the data I have is the speech of hearing-impaired individuals, for the purpose of comparison, I selected a speech sample from a hearing-impaired person as the real voice, and a generated version of the same speech as the generated voice.
+因为我手上的数据是听障人士的语音，因此在对比时，我选择了一个听障人士的语音作为真实声音，另一个相同语音的生成版本作为生成声音。
+
+
+
+| text 文本内容 | real record 真实声音（用户后录） | generate record生成声音（脚本输出） |
+|----------|----------------------|----------------------|
+| 大家好，我是火君，我居住在上海 | [点击播放/下载 (huojun.MP3)](test_demo/huojun.MP3) | [点击播放/下载 (huojun_gen.wav)](test_demo/huojun_gen.wav) |
+| 我爱机智流，机智流是最好的开源社区 | [点击播放/下载 (smartflowai.MP3)](test_demo/smartflowai.MP3) | [点击播放/下载 (smartflowai_gen.wav)](test_demo/smartflowai_gen.wav) |
+| tôi cũng như là những người lính như | [点击播放/下载 (vn_demo.MP3)](test_demo/vn_demo.MP3) | [点击播放/下载 (vn_gen.wav)](test_demo/vn_gen.wav) |
+
+We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-huoing, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
 
 On [EmergentTTS-Eval](https://github.com/boson-ai/emergenttts-eval-public), it achieves win rates of **75.7%** and **55.7%** over "gpt-4o-mini-tts" on the "Emotions" and "Questions" categories, respectively. It also obtains state-of-the-art performance on traditional TTS benchmarks like Seed-TTS Eval and Emotional Speech Dataset (ESD). Moreover, the model demonstrates capabilities rarely seen in previous systems, including generating natural multi-speaker dialogues in multiple languages, automatic prosody adaptation during narration, melodic humming with the cloned voice, and simultaneous generation of speech and background music.
 
@@ -215,7 +385,7 @@ python3 examples/generation.py \
 
 
 Higgs Audio v2 adopts the "generation variant" depicted in the architecture figure above. Its strong performance is driven by three key technical innovations:
-- We developed an automated annotation pipeline that leverages multiple ASR models, sound event classification models, and our in-house audio understanding model. Using this pipeline, we cleaned and annotated 10 million hours audio data, which we refer to as **AudioVerse**. The in-house understanding model is finetuned on top of [Higgs Audio v1 Understanding](https://www.boson.ai/blog/higgs-audio), which adopts the "understanding variant" shown in the architecture figure.
+- We developed an automated annotation pipeline that leverages multiple ASR models, sound event classification models, and our in-house audio understanding model. Using this pipeline, we cleaned and annotated 10 million hours audio data, which we refer to as **AudioVerse**. The in-house understanding model is finehuoed on top of [Higgs Audio v1 Understanding](https://www.boson.ai/blog/higgs-audio), which adopts the "understanding variant" shown in the architecture figure.
 - We trained a unified audio tokenizer from scratch that captures both semantic and acoustic features. Learn more in the [tokenizer blog](./tech_blogs/TOKENIZER_BLOG.md).
 - We proposed the DualFFN architecture, which enhances the LLM’s ability to model acoustics tokens with minimal computational overhead. See the [architecture blog](./tech_blogs/ARCHITECTURE_BLOG.md).
 

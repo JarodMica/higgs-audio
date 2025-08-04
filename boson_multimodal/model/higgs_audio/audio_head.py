@@ -70,6 +70,18 @@ class HiggsAudioDecoderProjector(HiggsAudioPreTrainedModel):
                 Logits for audio tokens. We ensure `num_text_tokens + num_audio_tokens == batch_size * seq_len`
         """
         logits = self.text_lm_head(hidden_states)
+        if audio_out_mask.any():
+            audio_hidden = hidden_states[audio_out_mask]
+            audio_logits = self.audio_lm_head(audio_hidden)
+            # 强制确保在正确设备上
+            audio_logits = audio_logits.to(hidden_states.device)
+        else:
+            # 当没有音频token时，创建空tensor
+            audio_logits = torch.empty(
+                (0, self.config.audio_num_codebooks * (self.config.audio_codebook_size + 2)),
+                device=hidden_states.device,
+                dtype=hidden_states.dtype
+            )
 
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None

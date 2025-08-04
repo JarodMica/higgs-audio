@@ -43,7 +43,6 @@ class ChatMLDatasetSample:
         None  # Shape (num_codebooks, audio_seq_len): The audio tokens that are concatenated.
     )
     # Here `audio_seq_len` is the length of the concatenated audio tokens.`
-    label_audio_ids: Optional[torch.LongTensor] = None  # 新增字段
     reward: Optional[float] = None
 
     def num_audios(self):
@@ -158,7 +157,6 @@ class ChatMLDatasetSample:
         audio_waveforms_start_list = []
         audio_sample_rate_list = []
         audio_speaker_indices_list = []
-        label_audio_ids_list = []  # 新增
 
         # Track offsets
         audio_ids_offset = 0
@@ -181,10 +179,6 @@ class ChatMLDatasetSample:
                 audio_ids_offset += sample.audio_ids_concat.size(
                     1
                 )  # (num_codebooks, seq_len): Update offset by audio_seq_len
-
-            # Add label_audio_ids
-            if sample.label_audio_ids is not None:
-                label_audio_ids_list.append(sample.label_audio_ids)
 
             # Add audio_waveforms_concat
             if sample.audio_waveforms_concat.size(0) > 0:
@@ -220,7 +214,6 @@ class ChatMLDatasetSample:
         try:
             audio_ids_concat = torch.cat(audio_ids_concat_list, dim=1) if audio_ids_concat_list else torch.tensor([[]])
             audio_ids_start = torch.cat(audio_ids_start_list, dim=0) if audio_ids_start_list else torch.tensor([])
-            label_audio_ids = torch.cat(label_audio_ids_list, dim=-1) if label_audio_ids_list else None
 
             # Check for dimensional consistency in audio waveforms
             if audio_waveforms_concat_list:
@@ -264,11 +257,8 @@ class ChatMLDatasetSample:
             audio_waveforms_start = torch.tensor([])
             audio_sample_rate = torch.tensor([])
             audio_speaker_indices = torch.tensor([])
-            label_audio_ids = None
 
-        # 在合并时也复制
-        label_audio_ids = audio_ids_concat if audio_ids_concat.numel() > 0 else None
-
+        # Create the merged sample
         merged_sample = cls(
             input_ids=input_ids,
             label_ids=label_ids,
@@ -278,10 +268,7 @@ class ChatMLDatasetSample:
             audio_waveforms_start=audio_waveforms_start,
             audio_sample_rate=audio_sample_rate,
             audio_speaker_indices=audio_speaker_indices,
-            audio_label_ids_concat=audio_label_ids_concat,  # 原来的字段
-            label_audio_ids=audio_ids_concat,  # 直接复制
         )
-
 
         return merged_sample
 
@@ -313,23 +300,6 @@ class ChatMLDatasetStorageSample:
     speaker_indices: torch.LongTensor
     file_index: int
     original_sample_index: int
-
-
-def encode_audio_to_tokens(audio_content: AudioContent):
-    """
-    将音频内容编码为token IDs
-    这是一个示例函数，需要根据你的实际音频编码器实现
-    """
-    # 如果音频内容已经包含编码后的tokens
-    if hasattr(audio_content, 'codes') and audio_content.codes is not None:
-        if isinstance(audio_content.codes, torch.Tensor):
-            return audio_content.codes
-        else:
-            return torch.tensor(audio_content.codes, dtype=torch.long)
-    
-    # 如果没有预编码的tokens，返回空tensor
-    logger.warning(f"Cannot encode audio content: {audio_content}")
-    return torch.tensor([], dtype=torch.long)
 
 
 # TODO(sxjscience): We need to revist the logic about parsing speaker ids.
@@ -383,12 +353,11 @@ def prepare_chatml_sample(sample: Union[ChatMLSample, Dict], tokenizer):
             except Exception as e:
                 print(f"Failed to convert to ChatMLSample: {e}")
                 print(f"Clean sample: {json.dumps(clean_sample, indent=2)}")
-                return None, None, None, None, None
+                return None, None, None, None
 
         input_tokens = []
         label_tokens = []
         audio_contents = []
-        audio_label_contents = []  # 新增：收集音频标签
         speaker_id = None
         if sample.speaker is not None:
             speaker_id = sample.speaker
@@ -442,17 +411,8 @@ def prepare_chatml_sample(sample: Union[ChatMLSample, Dict], tokenizer):
                         label_tokens.extend([-100 for _ in text_tokens])
 
                 elif content.type == "audio":
-                    # 收集所有音频内容
+                    # Generate the text-part of the audio tokens
                     audio_contents.append(content)
-                    
-                    # 判断是否作为标签
-                    if role == "assistant" and (sample.start_index is None or turn_id >= sample.start_index):
-                        # assistant的音频输出作为标签
-                        audio_label_contents.append(content)
-                    else:
-                        # 其他情况不作为标签
-                        audio_label_contents.append(None)
-                    
                     if role == "user" or role == "system":
                         # Add the text tokens
                         text_tokens = tokenizer.encode(
@@ -484,12 +444,12 @@ def prepare_chatml_sample(sample: Union[ChatMLSample, Dict], tokenizer):
             else:
                 label_tokens.extend([-100 for _ in postfix_tokens])
 
-        return input_tokens, label_tokens, audio_contents, audio_label_contents, speaker_id
+        return input_tokens, label_tokens, audio_contents, speaker_id
 
     except Exception as e:
         print(f"Error in prepare_chatml_sample: {str(e)}")
         print(f"Sample data: {json.dumps(sample, indent=2)}")
-        return None, None, None, None, None
+        return None, None, None, None
 
 
 def extract_generation_prompt_from_input_tokens(input_tokens, tokenizer):
@@ -534,90 +494,8 @@ def prepare_chatml_dataframe_single_process(df, tokenizer):
     """Prepare the ChatML DataFrame."""
     ret = []
     for _, row in df.iterrows():
-        result = prepare_chatml_sample(row.to_dict(), tokenizer)
-        if result[0] is not None:  # 检查是否成功处理
-            input_tokens, label_tokens, audio_contents, audio_label_contents, speaker_id = result
-            
-            # 处理音频数据
-            audio_ids_list = []
-            audio_waveforms_list = []
-            audio_sample_rates = []
-            audio_speaker_indices = []
-            audio_ids_start = []
-            audio_waveforms_start = []
-            label_audio_ids_list = []
-            
-            current_audio_offset = 0
-            current_waveform_offset = 0
-            
-            for i, (audio_content, audio_label_content) in enumerate(zip(audio_contents, audio_label_contents)):
-                # 编码音频为tokens
-                audio_tokens = encode_audio_to_tokens(audio_content)
-                
-                if audio_tokens.numel() > 0:
-                    # 记录起始位置
-                    audio_ids_start.append(current_audio_offset)
-                    
-                    # 添加音频tokens
-                    audio_ids_list.append(audio_tokens)
-                    current_audio_offset += audio_tokens.shape[-1]
-                
-                # 处理音频标签
-                if audio_label_content is not None:
-                    label_tokens = encode_audio_to_tokens(audio_label_content)
-                    label_audio_ids_list.append(label_tokens)
-                
-                # 处理音频波形
-                if hasattr(audio_content, 'waveform') and audio_content.waveform is not None:
-                    waveform = audio_content.waveform
-                    if isinstance(waveform, (list, np.ndarray)):
-                        waveform = torch.tensor(waveform, dtype=torch.float32)
-                    
-                    audio_waveforms_start.append(current_waveform_offset)
-                    audio_waveforms_list.append(waveform)
-                    current_waveform_offset += len(waveform)
-                    
-                    # 采样率
-                    sample_rate = getattr(audio_content, 'sample_rate', 16000)
-                    audio_sample_rates.append(sample_rate)
-                
-                # 说话人索引
-                speaker_idx = -1  # 默认未知说话人
-                if speaker_id is not None:
-                    speaker_idx = hash(speaker_id) % 1000  # 简单的hash映射
-                audio_speaker_indices.append(speaker_idx)
-            
-            # 拼接所有音频数据
-            if audio_ids_list:
-                audio_ids_concat = torch.cat(audio_ids_list, dim=-1)
-            else:
-                audio_ids_concat = torch.tensor([[]], dtype=torch.long)
-            
-            if audio_waveforms_list:
-                audio_waveforms_concat = torch.cat(audio_waveforms_list, dim=0)
-            else:
-                audio_waveforms_concat = torch.tensor([], dtype=torch.float32)
-            
-            if label_audio_ids_list:
-                label_audio_ids = torch.cat(label_audio_ids_list, dim=-1)
-            else:
-                label_audio_ids = None
-            
-            # 构建样本
-            sample = ChatMLDatasetSample(
-                input_ids=torch.tensor(input_tokens, dtype=torch.long),
-                label_ids=torch.tensor(label_tokens, dtype=torch.long),
-                audio_ids_concat=audio_ids_concat,
-                audio_ids_start=torch.tensor(audio_ids_start, dtype=torch.long),
-                audio_waveforms_concat=audio_waveforms_concat,
-                audio_waveforms_start=torch.tensor(audio_waveforms_start, dtype=torch.long),
-                audio_sample_rate=torch.tensor(audio_sample_rates, dtype=torch.float32),
-                audio_speaker_indices=torch.tensor(audio_speaker_indices, dtype=torch.long),
-                label_audio_ids=label_audio_ids,  # 设置音频标签
-            )
-            ret.append(sample)
-        else:
-            logger.warning(f"Failed to process sample at index {_}")
+        input_tokens, label_tokens, audio_contents, speaker_id = prepare_chatml_sample(row.to_dict(), tokenizer)
+        ret.append((input_tokens, label_tokens, audio_contents, speaker_id))
     return ret
 
 

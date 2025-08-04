@@ -234,6 +234,7 @@ def merge_input_ids_with_audio_features(
     if audio_out_embed is not None and audio_out_embed.shape[0] == 0:
         audio_out_embed = None
 
+    
     batch_size, sequence_length, embed_dim = inputs_embeds.shape
 
     target_device = inputs_embeds.device
@@ -337,6 +338,9 @@ def merge_input_ids_with_audio_features(
             & (seq_indices <= audio_features_token_ends.unsqueeze(1))
         )
         batch_indices = audio_in_batch_id[batch_indices]
+        ####
+        audio_out_embed = audio_out_embed.to(final_embedding.dtype)
+        ####
         final_embedding[batch_indices, col_indices] = audio_in_embed
         final_input_ids[batch_indices, col_indices] = audio_in_token_idx
         if not skip_labels:
@@ -363,6 +367,7 @@ def merge_input_ids_with_audio_features(
         if not skip_labels:
             final_labels[batch_indices, col_indices] = ignore_index
         final_audio_in_mask[batch_indices, col_indices] = True
+        
 
     if audio_out_embed is not None:
         # Fill in the audio-out embeddings
@@ -377,6 +382,9 @@ def merge_input_ids_with_audio_features(
             & (seq_indices <= audio_out_embed_ends.unsqueeze(1))
         )
         batch_indices = audio_out_batch_id[batch_indices]
+        ###
+        audio_out_embed = audio_out_embed.to(final_embedding.dtype)
+        ###
         final_embedding[batch_indices, col_indices] = audio_out_embed
         final_input_ids[batch_indices, col_indices] = audio_out_token_idx
         if not skip_labels:
